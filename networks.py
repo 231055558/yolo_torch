@@ -1,76 +1,9 @@
 from BaseModule import BaseModule
 import torch
 import torch.nn as nn
-from typing import Union, Optional, Dict, Tuple
-from utils import kaiming_init, constant_init, build_padding_layer, build_conv_layer, build_norm_layer, \
-    build_activation_layer
-
-# class ConvModule(nn.Module):
-#     def __init__(self,
-#                  in_channels,
-#                  out_channels,
-#                  kernel_size,
-#                  stride=1,
-#                  padding=0,
-#                  activation='relu',
-#                  norm_cfg=None,
-#                  order=('conv', 'norm', 'act')):
-#         super().__init__()
-#         self.order = order
-#         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=False)
-#
-#         # 如果传入了 norm_cfg，则获取归一化类型
-#         if norm_cfg:
-#             norm_type = norm_cfg.get('type', 'BatchNorm2d')
-#             self.norm = getattr(nn, norm_type)(out_channels)
-#         else:
-#             self.norm = None
-#
-#         # 激活函数选择
-#         if activation == 'relu':
-#             self.act = nn.ReLU(inplace=True)
-#         elif activation == 'leaky_relu':
-#             self.act = nn.LeakyReLU(0.1, inplace=True)
-#         elif activation == 'sigmoid':
-#             self.act = nn.Sigmoid()
-#         else:
-#             self.act = None
-#
-#     def forward(self, x):
-#         # 根据指定顺序逐步应用层
-#         for layer in self.order:
-#             if layer == 'conv':
-#                 x = self.conv(x)
-#             elif layer == 'norm' and self.norm:
-#                 x = self.norm(x)
-#             elif layer == 'act' and self.act:
-#                 x = self.act(x)
-#         return x
-#
-#     def init_weights(self):
-#         # 如果卷积层没有自己的初始化方法，则进行默认初始化
-#         if not hasattr(self.conv, 'init_weights'):
-#             # 根据激活函数类型选择不同的非线性形式
-#             if isinstance(self.act, nn.LeakyReLU):
-#                 nonlinearity = 'leaky_relu'
-#                 a = self.act.negative_slope if hasattr(self.act, 'negative_slope') else 0.01
-#             else:
-#                 nonlinearity = 'relu'
-#                 a = 0
-#
-#             # 使用 Kaiming 初始化权重
-#             init.kaiming_normal_(self.conv.weight, a=a, mode='fan_in', nonlinearity=nonlinearity)
-#             if self.conv.bias is not None:
-#                 init.zeros_(self.conv.bias)
-#
-#         # 如果使用了归一化层，则使用常量初始化
-#         if self.norm:
-#             init.constant_(self.norm.weight, 1)
-#             if hasattr(self.norm, 'bias') and self.norm.bias is not None:
-#                 init.zeros_(self.norm.bias)
-
-
-#
+from torch import Tensor
+from typing import Union, Optional, Dict, Tuple, Sequence, List
+from utils import kaiming_init, constant_init, build_padding_layer, build_conv_layer, build_norm_layer, build_activation_layer
 
 class ConvModule(nn.Module):
     """A conv block that bundles conv/norm/activation layers.
@@ -263,7 +196,7 @@ class ConvModule(nn.Module):
             elif layer == 'act' and activate and self.with_activation:
                 x = self.activate(x)
         return x
-class DarknetBottleneck(BaseModule):
+class Det_DarknetBottleneck(BaseModule):
     """The basic bottleneck block used in Darknet.
 
     Each ResBlock consists of two ConvModules and the input is added to the
@@ -289,7 +222,7 @@ class DarknetBottleneck(BaseModule):
                  use_depthwise: bool = False,
                  conv_cfg: Optional[Dict] = None,
                  norm_cfg: Optional[Dict] = dict(type='BN', momentum=0.03, eps=0.001),
-                 act_cfg: Optional[Dict] = dict(type='Swish'),
+                 act_cfg: Optional[Dict] = dict(type='SiLU', inplace=True),
                  init_cfg: Optional[Dict] = None) -> None:
         super().__init__(init_cfg=init_cfg)
         hidden_channels = int(out_channels * expansion)
@@ -320,3 +253,282 @@ class DarknetBottleneck(BaseModule):
             return out + identity
         else:
             return out
+
+class DarknetBottleneck(Det_DarknetBottleneck):
+    """The basic bottleneck block used in Darknet.
+
+    Each ResBlock consists of two ConvModules and the input is added to the
+    final output. Each ConvModule is composed of Conv, BN, and LeakyReLU.
+    The first convLayer has filter size of k1Xk1 and the second one has the
+    filter size of k2Xk2.
+
+    Note:
+    This DarknetBottleneck is a little different from MMDet's; we can
+    change the kernel size and padding for each conv.
+
+    Args:
+        in_channels (int): The input channels of this Module.
+        out_channels (int): The output channels of this Module.
+        expansion (float): The kernel size for hidden channel.
+            Defaults to 0.5.
+        kernel_size (Sequence[int]): The kernel size of the convolution.
+            Defaults to (1, 3).
+        padding (Sequence[int]): The padding size of the convolution.
+            Defaults to (0, 1).
+        add_identity (bool): Whether to add identity to the out.
+            Defaults to True.
+        use_depthwise (bool): Whether to use depthwise separable convolution.
+            Defaults to False.
+        conv_cfg (dict): Config dict for convolution layer. Default: None,
+            which means using conv2d.
+        norm_cfg (dict): Config dict for normalization layer.
+            Defaults to dict(type='BN').
+        act_cfg (dict): Config dict for activation layer.
+            Defaults to dict(type='Swish').
+    """
+
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 expansion: float = 0.5,
+                 kernel_size: Sequence[int] = (1, 3),
+                 padding: Sequence[int] = (0, 1),
+                 add_identity: bool = True,
+                 use_depthwise: bool = False,
+                 conv_cfg: Optional[dict] = None,
+                 norm_cfg: Optional[dict] = dict(type='BN', momentum=0.03, eps=0.001),
+                 act_cfg: Optional[dict] = dict(type='SiLU', inplace=True),
+                 init_cfg: Optional[dict] = None) -> None:
+        super().__init__(in_channels, out_channels, init_cfg=init_cfg)
+
+        hidden_channels = int(out_channels * expansion)
+
+        assert isinstance(kernel_size, Sequence) and len(kernel_size) == 2
+
+        # First convolution
+        self.conv1 = ConvModule(
+            in_channels,
+            hidden_channels,
+            kernel_size[0],
+            padding=padding[0],
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg)
+
+        # Second convolution
+        self.conv2 = ConvModule(
+            hidden_channels,
+            out_channels,
+            kernel_size[1],
+            padding=padding[1],
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg)
+
+        # Identity shortcut
+        self.add_identity = add_identity and (in_channels == out_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward process
+        Args:
+            x (Tensor): The input tensor.
+        """
+        identity = x  # 备份输入以供残差连接使用
+
+        # Pass through first conv layer
+        x = self.conv1(x)
+
+        # Pass through second conv layer
+        x = self.conv2(x)
+
+        # 如果需要，添加输入作为残差连接
+        if self.add_identity:
+            x += identity
+
+        return x
+
+class CSPLayerWithTwoConv(BaseModule):
+    """Cross Stage Partial Layer with 2 convolutions.
+
+    Args:
+        in_channels (int): The input channels of the CSP layer.
+        out_channels (int): The output channels of the CSP layer.
+        expand_ratio (float): Ratio to adjust the number of channels of the
+            hidden layer. Defaults to 0.5.
+        num_blocks (int): Number of blocks. Defaults to 1.
+        add_identity (bool): Whether to add identity in blocks.
+            Defaults to True.
+        conv_cfg (dict, optional): Config dict for convolution layer.
+            Defaults to None, which means using conv2d.
+        norm_cfg (dict): Config dict for normalization layer.
+            Defaults to dict(type='BN').
+        act_cfg (dict): Config dict for activation layer.
+            Defaults to dict(type='SiLU', inplace=True).
+        init_cfg (:obj:`ConfigDict` or dict or list[dict] or
+            list[:obj:`ConfigDict`], optional): Initialization config dict.
+            Defaults to None.
+    """
+
+    def __init__(
+            self,
+            in_channels: int,
+            out_channels: int,
+            expand_ratio: float = 0.5,
+            num_blocks: int = 1,
+            add_identity: bool = True,  # 是否添加残差连接
+            conv_cfg: Optional[dict] = None,
+            norm_cfg: dict = dict(type='BN', momentum=0.03, eps=0.001),
+            act_cfg: dict = dict(type='SiLU', inplace=True),
+            init_cfg: Optional[dict] = None) -> None:
+        super().__init__(init_cfg=init_cfg)
+
+        self.mid_channels = int(out_channels * expand_ratio)
+
+        # 主卷积层，将输入通道数映射到 2 倍的中间通道数
+        self.main_conv = ConvModule(
+            in_channels,
+            2 * self.mid_channels,
+            kernel_size=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg
+        )
+
+        # 用于最终输出的卷积层，将拼接的通道数映射回输出通道数
+        self.final_conv = ConvModule(
+            (2 + num_blocks) * self.mid_channels,
+            out_channels,
+            kernel_size=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg
+        )
+
+        # 定义多个 DarknetBottleneck 模块
+        self.blocks = nn.ModuleList(
+            DarknetBottleneck(
+                in_channels=self.mid_channels,
+                out_channels=self.mid_channels,
+                expansion=1,
+                kernel_size=(3, 3),
+                padding=(1, 1),
+                add_identity=add_identity,
+                use_depthwise=False,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                act_cfg=act_cfg
+            ) for _ in range(num_blocks)
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward process."""
+        # 通过主卷积层处理输入
+        x_main = self.main_conv(x)
+
+        # 将主卷积层的输出切分成两部分
+        x_main = list(x_main.split(self.mid_channels, 1))
+
+        # 逐个通过每个残差模块
+        for block in self.blocks:
+            x_main.append(block(x_main[-1]))
+
+        # 将所有的特征拼接起来，然后通过最后的卷积层
+        out = torch.cat(x_main, dim=1)
+        return self.final_conv(out)
+
+class SPPFBottleneck(BaseModule):
+    """Spatial pyramid pooling - Fast (SPPF) layer for
+    YOLOv5, YOLOX and PPYOLOE by Glenn Jocher.
+
+    Args:
+        in_channels (int): The input channels of this Module.
+        out_channels (int): The output channels of this Module.
+        kernel_sizes (int, tuple[int]): Sequential or number of kernel
+            sizes of pooling layers. Defaults to 5.
+        use_conv_first (bool): Whether to use conv before pooling layer.
+            In YOLOv5 and YOLOX, the parameter is set to True.
+            In PPYOLOE, the parameter is set to False.
+            Defaults to True.
+        mid_channels_scale (float): Channel multiplier, multiply in_channels
+            by this amount to get mid_channels. This parameter is valid only
+            when use_conv_first=True. Defaults to 0.5.
+        conv_cfg (dict): Config dict for convolution layer. Defaults to None.
+        norm_cfg (dict): Config dict for normalization layer.
+            Defaults to dict(type='BN', momentum=0.03, eps=0.001).
+        act_cfg (dict): Config dict for activation layer.
+            Defaults to dict(type='SiLU', inplace=True).
+        init_cfg (dict or list[dict], optional): Initialization config dict.
+            Defaults to None.
+    """
+
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 kernel_sizes: Union[int, Sequence[int]] = 5,
+                 use_conv_first: bool = True,
+                 mid_channels_scale: float = 0.5,
+                 conv_cfg: dict = None,
+                 norm_cfg: dict = dict(type='BN', momentum=0.03, eps=0.001),
+                 act_cfg: dict = dict(type='SiLU', inplace=True),
+                 init_cfg: Union[dict, List[dict], None] = None):
+        super().__init__(init_cfg)
+
+        # Calculate intermediate channels and define the first conv if needed
+        if use_conv_first:
+            mid_channels = int(in_channels * mid_channels_scale)
+            self.conv1 = ConvModule(
+                in_channels,
+                mid_channels,
+                kernel_size=1,
+                stride=1,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                act_cfg=act_cfg)
+        else:
+            mid_channels = in_channels
+            self.conv1 = None
+
+        self.kernel_sizes = kernel_sizes
+
+        # Define pooling layers
+        if isinstance(kernel_sizes, int):
+            self.poolings = nn.MaxPool2d(
+                kernel_size=kernel_sizes, stride=1, padding=kernel_sizes // 2)
+            conv2_in_channels = mid_channels * 4
+        else:
+            self.poolings = nn.ModuleList([
+                nn.MaxPool2d(kernel_size=ks, stride=1, padding=ks // 2)
+                for ks in kernel_sizes
+            ])
+            conv2_in_channels = mid_channels * (len(kernel_sizes) + 1)
+
+        # Define the second convolutional layer
+        self.conv2 = ConvModule(
+            conv2_in_channels,
+            out_channels,
+            kernel_size=1,
+            conv_cfg=conv_cfg,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward process.
+
+        Args:
+            x (Tensor): The input tensor.
+        """
+        if self.conv1:
+            x = self.conv1(x)
+
+        # Apply pooling and concatenate results
+        if isinstance(self.kernel_sizes, int):
+            y1 = self.poolings(x)
+            y2 = self.poolings(y1)
+            x = torch.cat([x, y1, y2, self.poolings(y2)], dim=1)
+        else:
+            x = torch.cat(
+                [x] + [pooling(x) for pooling in self.poolings], dim=1)
+
+        # Apply the final convolutional layer
+        x = self.conv2(x)
+        return x
