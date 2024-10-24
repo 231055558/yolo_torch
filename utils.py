@@ -1,5 +1,7 @@
 import torch.nn as nn
+import torch
 from typing import Dict, Optional, Tuple, Union
+import math
 
 def kaiming_init(module,
                  a=0,
@@ -162,7 +164,18 @@ def build_norm_layer(cfg: Dict,
         param.requires_grad = requires_grad
 
     return name, layer
+class SiLU(nn.Module):
+    """Sigmoid Weighted Liner Unit."""
 
+    def __init__(self, inplace=False):
+        super().__init__()
+        self.inplace = inplace
+
+    def forward(self, inputs) -> torch.Tensor:
+        if self.inplace:
+            return inputs.mul_(torch.sigmoid(inputs))
+        else:
+            return inputs * torch.sigmoid(inputs)
 
 def build_activation_layer(cfg: Dict) -> nn.Module:
     """Build activation layer.
@@ -192,6 +205,7 @@ def build_activation_layer(cfg: Dict) -> nn.Module:
         'ELU': nn.ELU,
         'Sigmoid': nn.Sigmoid,
         'Tanh': nn.Tanh,
+        'SiLU': nn.SiLU if torch.__version__ >= '1.7.0' else SiLU,
     }
 
     # 根据类型获取对应的激活层类
@@ -204,3 +218,13 @@ def build_activation_layer(cfg: Dict) -> nn.Module:
     layer = activation_layer(**cfg)
 
     return layer
+
+def make_divisible(x: float,
+                   widen_factor: float = 1.0,
+                   divisor: int = 8) -> int:
+    """Make sure that x*widen_factor is divisible by divisor."""
+    return math.ceil(x * widen_factor / divisor) * divisor
+
+def make_round(x: float, deepen_factor: float = 1.0) -> int:
+    """Make sure that x*deepen_factor becomes an integer not less than 1."""
+    return max(round(x * deepen_factor), 1) if x > 1 else x
