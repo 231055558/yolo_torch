@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import List, Tuple, Union, Optional
-from networks import BaseModule, ConvModule, CSPLayerWithTwoConv, SPPFBottleneck
+from model.networks import BaseModule, ConvModule, CSPLayerWithTwoConv, SPPFBottleneck
 from utils import make_divisible, make_round
 class YOLOv8CSPDarknet(BaseModule):
     """CSP-Darknet backbone used in YOLOv8.
