@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from abc import ABCMeta, abstractmethod
 from typing import List, Union
-from basemodule import BaseModule
+from .basemodule import BaseModule
 from model.networks import ConvModule, CSPLayerWithTwoConv
 from utils import make_divisible, make_round
 
@@ -18,8 +18,9 @@ class BaseYOLONeck(BaseModule, metaclass=ABCMeta):
                  upsample_feats_cat_first: bool = True,
                  freeze_all: bool = False,
                  norm_cfg: dict = None,
-                 act_cfg: dict = None):
-        super().__init__()
+                 act_cfg: dict = None,
+                 init_cfg: dict = None,):
+        super().__init__(init_cfg)
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.deepen_factor = deepen_factor

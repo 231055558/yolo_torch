@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
 from model.csp_darknet import YOLOv8CSPDarknet
+from model.yolov8_pafpn import YOLOv8PAFPN
 # 假设你有一个模型类
-model = YOLOv8CSPDarknet()  # 实例化模型
+model = YOLOv8PAFPN([256, 512, 1024], [256, 512, 1024])  # 实例化模型
 #
 # # 打印模型结构
 # print(model)
 # print('\n\n\n\n------------------------------------------\n\n\n\n')
 # # 更详细地打印每一层
 for name, layer in model.named_modules():
-    print(f"Layer: {name}, Structure: {layer}")
+    print(f"Layer: {name} \n Structure: {layer}\n\n")
 ckp_path = './checkpoint/yolov8_s_syncbn_fast_8xb16-500e_coco_20230117_180101-5aa5f0f1.pth'
 # # 假设权重文件路径为 'path_to_weights.pth'
 checkpoint = torch.load('./checkpoint/yolov8_s_syncbn_fast_8xb16-500e_coco_20230117_180101-5aa5f0f1.pth', map_location='cpu')
@@ -41,25 +42,25 @@ model_state_dict = model.state_dict()
 #         print(f"{name}: Not found in weight file.")
 
 
-def load_weights_with_mapping(model, weight_path):
-    # 加载权重文件
-    checkpoint = torch.load(weight_path, map_location='cpu')
-    model_weights = checkpoint['state_dict'] if 'state_dict' in checkpoint else checkpoint
+# def load_weights_with_mapping(model, weight_path):
+#     # 加载权重文件
+#     checkpoint = torch.load(weight_path, map_location='cpu')
+#     model_weights = checkpoint['state_dict'] if 'state_dict' in checkpoint else checkpoint
+#
+#     # 创建一个新的字典用于存储映射后的权重
+#     new_state_dict = {}
+#     for model_key in model.state_dict().keys():
+#         # 获取权重文件中对应的键名
+#         checkpoint_key = model_key.replace('stem.', 'backbone.stem.')
+#
+#         if checkpoint_key in model_weights:
+#             new_state_dict[model_key] = model_weights[checkpoint_key]
+#             print(f'{model_key} is ok')
+#         else:
+#             print(f"{model_key}: Not found in weight file.")
+#
+#     # 加载映射后的权重
+#     model.load_state_dict(new_state_dict, strict=False)
+#     return model
 
-    # 创建一个新的字典用于存储映射后的权重
-    new_state_dict = {}
-    for model_key in model.state_dict().keys():
-        # 获取权重文件中对应的键名
-        checkpoint_key = model_key.replace('stem.', 'backbone.stem.')
-
-        if checkpoint_key in model_weights:
-            new_state_dict[model_key] = model_weights[checkpoint_key]
-            print(f'{model_key} is ok')
-        else:
-            print(f"{model_key}: Not found in weight file.")
-
-    # 加载映射后的权重
-    model.load_state_dict(new_state_dict, strict=False)
-    return model
-
-load_weights_with_mapping(model, ckp_path)
+# load_weights_with_mapping(model, ckp_path)
