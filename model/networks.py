@@ -1,4 +1,4 @@
-from BaseModule import BaseModule
+from .basemodule import BaseModule
 import torch
 import torch.nn as nn
 from torch import Tensor

@@ -1,9 +1,17 @@
 import copy
 import logging
-import torch.nn as nn
 from collections import defaultdict
-from typing import Union, List
+from typing import Union, List, Tuple
+from abc import ABCMeta, abstractmethod
 
+import torch.nn as nn
+from torch import Tensor
+
+class InstanceData:
+    pass
+
+class ConfigDict:
+    pass
 
 class BaseModule(nn.Module):
     """Base module for all modules with parameter initialization functionality.
@@ -98,3 +106,62 @@ class BaseModule(nn.Module):
         if self.init_cfg:
             s += f'\ninit_cfg={self.init_cfg}'
         return s
+
+
+# class BaseDenseHead(BaseModule, metaclass=ABCMeta):
+#     def __init__(self, init_cfg=None):
+#         super().__init__(init_cfg=init_cfg)
+#         self._raw_positive_infos = dict()
+#
+#     def init_weights(self):
+#         super().init_weights()
+#         for m in self.modules():
+#             if hasattr(m, 'conv_offset')
+#                 nn.init.constant_(m.conv_offset, 0)
+#     def get_positive_infos(self):
+#         if len(self._raw_positive_infos) == 0:
+#             return None
+#
+#         sampling_results = self._raw_positive_infos.get('sampling_results', None)
+#         assert sampling_results is not None
+#         positive_infos = []
+#         for sampling_result in sampling_results:
+#             pos_info = InstanceData()
+#             pos_info.bboxes = sampling_result.pos_gt_bboxes
+#             pos_info.labels = sampling_result.pos_gt_labels
+#             pos_info.priors = sampling_result.pos_priors
+#             pos_info.pos_assigned_gt_inds = sampling_result.pos_assigned_gt_inds
+#             pos_info.pos_inds = sampling_result.pos_inds
+#             positive_infos.append(pos_info)
+#         return positive_infos
+#
+#     def loss(self, x: Tuple[Tensor], batch_data_samples):
+#         outs = self(x)
+#
+#         outputs = unpack_gt_instances(batch_data_samples)
+#         (batch_gt_instances, batch_gt_instances_ignore,
+#          batch_img_metas) = outputs
+#
+#         loss_inputs = outs + (batch_gt_instances, batch_img_metas,
+#                               batch_gt_instances_ignore)
+#         losses = self.loss_by_feat(*loss_inputs)
+#         return losses
+#
+#     @abstractmethod
+#     def loss_by_feat(self, **kwargs) -> dict:
+#         """Calculate the loss based on the features extracted by the detection
+#         head."""
+#         pass
+#
+#     def loss_and_predict(self, x, batch_data_samples, **kwargs):
+#         """Calculate losses and make predictions from a batch of inputs and data samples."""
+#         batch_gt_instances = [sample.gt_instances for sample in batch_data_samples]
+#         batch_img_metas = [sample.metainfo for sample in batch_data_samples]
+#
+#         outs = self.forward(x)
+#
+#         loss_inputs = outs + (batch_gt_instances, batch_img_metas)
+#         losses = self.loss_by_feat(*loss_inputs, **kwargs)
+#
+#         predictions = self.predict_by_feat(*outs, batch_img_metas=batch_img_metas, **kwargs)
+#         return losses, predictions

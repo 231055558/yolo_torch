@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from abc import ABCMeta, abstractmethod
 from typing import List, Union
-from BaseModule import BaseModule
+from basemodule import BaseModule
 from model.networks import ConvModule, CSPLayerWithTwoConv
 from utils import make_divisible, make_round
 
