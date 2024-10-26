@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 from typing import List, Tuple, Union, Optional
 from model.networks import BaseModule, ConvModule, CSPLayerWithTwoConv, SPPFBottleneck
-from utils import make_divisible, make_round
+from utils import make_divisible, make_round, build_plugin_layer
+
+
 class YOLOv8CSPDarknet(BaseModule):
     """CSP-Darknet backbone used in YOLOv8.
 
@@ -48,7 +50,8 @@ class YOLOv8CSPDarknet(BaseModule):
                  init_cfg: Optional[Union[dict, List[dict]]] = None):
         self.arch_settings[arch][-1][1] = last_stage_out_channels
         super().__init__(init_cfg=init_cfg)
-
+        self.arch_setting = self.arch_settings[arch]
+        self.num_stages = len(self.arch_setting)
         self.deepen_factor = deepen_factor
         self.widen_factor = widen_factor
         self.input_channels = input_channels
@@ -56,18 +59,17 @@ class YOLOv8CSPDarknet(BaseModule):
         self.frozen_stages = frozen_stages
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
+        self.plugins = plugins
         self.norm_eval = norm_eval
 
         self.stem = self.build_stem_layer()
-
+        self.layers = ['stem']
         # Build stages based on the arch settings.
         self.stages = nn.ModuleList()
-        for idx, setting in enumerate(self.arch_settings[arch]):
+        for idx, setting in enumerate(self.arch_setting):
             stage = self.build_stage_layer(idx, setting)
             self.stages.append(nn.Sequential(*stage))
 
-        # Freeze stages if needed
-        self._freeze_stages()
 
     def build_stem_layer(self) -> nn.Module:
         """Build the stem layer, which is the first convolutional layer."""
@@ -119,6 +121,20 @@ class YOLOv8CSPDarknet(BaseModule):
             stage.append(spp)
         return stage
 
+    def make_stage_plugins(self, plugins, stage_idx, setting):
+        in_channels = int(setting[1] * self.widen_factor)
+        plugins_layers = []
+        for plugin in plugins:
+            plugin = plugin.copy()
+            stages = plugin.pop('stages', None)
+            assert stages is None or len(stages) == self.num_stages
+            if stages is None or stages[stage_idx]:
+                name, layer = build_plugin_layer(
+                    plugin['cfg'], in_channels=in_channels)
+                plugins_layers.append(layer)
+        return plugins_layers
+
+
     def _freeze_stages(self):
         """Freeze the specified stages to stop their gradients."""
         if self.frozen_stages >= 0:
@@ -127,6 +143,14 @@ class YOLOv8CSPDarknet(BaseModule):
                 for param in stage.parameters():
                     param.requires_grad = False
                 stage.eval()
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        self._freeze_stages()
+        if mode and self.norm_eval:
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.eval()
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         """Forward pass through the backbone."""
@@ -137,12 +161,3 @@ class YOLOv8CSPDarknet(BaseModule):
             if i in self.out_indices:
                 outputs.append(x)
         return outputs
-
-    def init_weights(self):
-        """Initialize the parameters."""
-        if self.init_cfg is None:
-            for m in self.modules():
-                if isinstance(m, nn.Conv2d):
-                    m.reset_parameters()
-        else:
-            super().init_weights()
