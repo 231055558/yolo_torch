@@ -253,3 +253,45 @@ def multi_apply(func, *args, **kwargs):
     map_results = map(pfunc, *args)
     return tuple(map(list, zip(*map_results)))
 
+def build_plugin_layer(cfg: Dict,
+                       postfix: Union[int, str] = '',
+                       **kwargs) -> Tuple[str, nn.Module]:
+    """Build a plugin layer in PyTorch.
+
+    Args:
+        cfg (dict): cfg should contain:
+            - type (str): identify plugin layer type.
+            - layer args: args needed to instantiate a plugin layer.
+        postfix (int, str): appended into abbreviation to create named layer.
+            Default: ''.
+
+    Returns:
+        tuple[str, nn.Module]: The first one is the concatenation of
+        abbreviation and postfix. The second is the created plugin layer.
+    """
+    if not isinstance(cfg, dict):
+        raise TypeError('cfg must be a dict')
+    if 'type' not in cfg:
+        raise KeyError('the cfg dict must contain the key "type"')
+
+    # Extract the type of the layer and its arguments
+    layer_type = cfg.pop('type')
+    layer_args = cfg.copy()
+
+    # Use getattr to obtain the desired layer class from nn or your custom layers
+    # It assumes that layer_type is a valid PyTorch layer or a custom one
+    if hasattr(nn, layer_type):
+        plugin_layer = getattr(nn, layer_type)
+    else:
+        raise KeyError(f'Layer type {layer_type} is not found in torch.nn')
+
+    # Create abbreviation based on layer type
+    abbr = layer_type[:3].lower()  # Use the first three letters as abbreviation
+
+    assert isinstance(postfix, (int, str)), "Postfix should be an integer or string."
+    name = abbr + str(postfix)
+
+    # Instantiate the layer with the provided arguments and any additional kwargs
+    layer = plugin_layer(**layer_args, **kwargs)
+
+    return name, layer
